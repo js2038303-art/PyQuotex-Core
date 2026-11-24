@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+session.json
+settings/config.ini
+browser/
+playwright/.cache/
+*.log
