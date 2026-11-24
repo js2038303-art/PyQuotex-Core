@@ -1,0 +1,7 @@
+requests
+urllib3
+certifi
+websocket-client
+beautifulsoup4
+numpy
+pyfiglet
