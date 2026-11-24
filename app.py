@@ -7,6 +7,8 @@ import time
 from contextlib import asynccontextmanager
 from typing import Any
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from engine.study_engine import study_engine
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -59,7 +61,16 @@ class ConnectRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"name": "PyQuotex-Core API", "status": "ok", "health": "/health", "docs": "/docs"}
+    return FileResponse("static/index.html")
+
+@app.get("/api/study/snapshot")
+async def study_snapshot(
+    asset: str = Query(default="EURUSD", min_length=3, max_length=30, pattern=r"^[A-Za-z0-9_]+$"),
+    period: int = Query(default=60, ge=1, le=86400),
+    limit: int = Query(default=120, ge=20, le=500),
+):
+    """Return synthetic market data for study; this endpoint never contacts the broker."""
+    return study_engine.snapshot(asset=asset, period=period, limit=limit)
 
 @app.get("/health")
 async def health():
