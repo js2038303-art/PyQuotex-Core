@@ -1,6 +1,7 @@
 """PyQuotex-Core API: DEMO-only broker gateway."""
 from __future__ import annotations
 import asyncio
+from collections import deque
 import logging
 import os
 import time
@@ -24,6 +25,7 @@ else:
 
 _client: Any = None
 _connected = False
+_signal_history: deque[dict[str, Any]] = deque(maxlen=100)
 _connect_lock = asyncio.Lock()
 BROKER_TIMEOUT = float(os.getenv("QUOTEX_CONNECT_TIMEOUT", "45"))
 
@@ -71,7 +73,20 @@ async def study_snapshot(
     limit: int = Query(default=120, ge=20, le=500),
 ):
     """Return synthetic market data for study; this endpoint never contacts the broker."""
-    return study_engine.snapshot(asset=asset, period=period, limit=limit)
+    result = study_engine.snapshot(asset=asset, period=period, limit=limit)
+    _signal_history.appendleft({
+        "time": int(time.time()), "asset": asset, "period": period,
+        "signal": result["signal"], "indicators": result["indicators"],
+        "mode": "SIMULATED",
+    })
+    return result
+
+
+@app.get("/api/study/signals")
+async def study_signals(limit: int = Query(default=20, ge=1, le=100)):
+    """Return recent in-memory study signals; history resets when the service restarts."""
+    return {"mode": "SIMULATED", "signals": list(_signal_history)[:limit]}
+
 
 @app.get("/api/study/backtest")
 async def study_backtest(
