@@ -39,3 +39,12 @@ def test_disconnect_is_idempotent():
     response = TestClient(api.app).post("/api/disconnect")
     assert response.status_code == 200
     assert response.json() == {"connected": False}
+
+
+def test_study_snapshot_endpoint_returns_simulated_candles():
+    response = TestClient(api.app).get("/api/study/snapshot?asset=EURUSD&period=60&limit=30")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["mode"] == "SIMULATED"
+    assert len(body["candles"]) == 30
+    assert body["disclaimer"]
