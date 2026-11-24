@@ -67,3 +67,14 @@ def test_study_backtest_rejects_fast_period_not_below_slow():
         "/api/study/backtest?fast=21&slow=9"
     )
     assert response.status_code == 422
+
+
+def test_study_signal_history_records_snapshot_requests():
+    client = TestClient(api.app)
+    client.get("/api/study/snapshot?asset=EURUSD&period=60&limit=30")
+    response = client.get("/api/study/signals?limit=5")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["mode"] == "SIMULATED"
+    assert body["signals"]
+    assert body["signals"][0]["asset"] == "EURUSD"
