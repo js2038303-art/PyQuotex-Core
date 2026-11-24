@@ -16,5 +16,7 @@ services:
         sync: false
       - key: QUOTEX_PASSWORD
         sync: false
+      - key: QUOTEX_CONNECT_TIMEOUT
+        value: "45"
       - key: CORS_ORIGINS
-        value: "*"
+        value: "https://pyquotex-core.hatchable.site"
