@@ -34,6 +34,7 @@ h1{font-size:21px;margin:0}small,.muted{color:var(--muted)}main{max-width:1200px
 <div class="grid"><div class="metric"><span>Operações simuladas</span><strong id="btTrades">—</strong></div><div class="metric"><span>Acertos</span><strong id="btWins">—</strong></div><div class="metric"><span>Taxa de acerto</span><strong id="btRate">—</strong></div><div class="metric"><span>Retorno simples</span><strong id="btReturn">—</strong></div></div>
 <p id="btNote" class="muted">O backtest utiliza candles sintéticos e não realiza operações.</p>
 </section>
+<section class="panel" style="margin-top:16px"><h3>Histórico recente de sinais</h3><div id="signalHistory" class="muted">Nenhum sinal registrado nesta sessão.</div></section>
 <p class="muted" style="margin-top:18px">Esta interface consulta a API do mesmo servidor. Nenhuma URL de API precisa ser configurada manualmente.</p>
 </main>
 <script>
@@ -51,8 +52,20 @@ async function load(){
   const closes=data.candles.map(c=>c.close),min=Math.min(...closes),max=Math.max(...closes),range=max-min||1;
   $('chart').innerHTML='';
   data.candles.forEach((c,i)=>{const bar=document.createElement('div');bar.className='bar'+(i&&c.close<data.candles[i-1].close?' down':'');bar.style.height=(12+(c.close-min)/range*88)+'%';bar.title=new Date(c.time*1000).toLocaleString()+' • '+c.close;$('chart').appendChild(bar)});
-  $('status').textContent='● API conectada • SIMULAÇÃO';
+  $('status').textContent='● API conectada • SIMULAÇÃO';\n  await loadSignalHistory();
  }catch(error){$('status').textContent='● Erro: '+error.message}
+}
+async function loadSignalHistory(){
+ try{
+  const response=await fetch('/api/study/signals?limit=8');if(!response.ok)return;
+  const data=await response.json();const host=$('signalHistory');host.innerHTML='';
+  if(!data.signals.length){host.textContent='Nenhum sinal registrado nesta sessão.';return}
+  data.signals.forEach(item=>{
+   const line=document.createElement('div');line.style.padding='8px 0';line.style.borderBottom='1px solid #26364d';
+   line.textContent=new Date(item.time*1000).toLocaleTimeString()+' • '+item.asset+' • '+item.signal;
+   host.appendChild(line);
+  });
+ }catch(_error){}
 }
 async function runBacktest(){
  const fast=$('fast').value,slow=$('slow').value;
