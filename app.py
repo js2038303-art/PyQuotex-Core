@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from engine.study_engine import study_engine
+from engine.strategy_engine import backtest_sma
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -71,6 +72,26 @@ async def study_snapshot(
 ):
     """Return synthetic market data for study; this endpoint never contacts the broker."""
     return study_engine.snapshot(asset=asset, period=period, limit=limit)
+
+@app.get("/api/study/backtest")
+async def study_backtest(
+    asset: str = Query(default="EURUSD", min_length=3, max_length=30, pattern=r"^[A-Za-z0-9_]+$"),
+    period: int = Query(default=60, ge=1, le=86400),
+    limit: int = Query(default=300, ge=30, le=500),
+    fast: int = Query(default=9, ge=2, le=100),
+    slow: int = Query(default=21, ge=3, le=200),
+):
+    """Run an educational SMA crossover backtest on synthetic candles."""
+    if fast >= slow:
+        raise HTTPException(status_code=422, detail="O período rápido precisa ser menor que o lento.")
+    candles_data = study_engine.candles(asset=asset, period=period, limit=limit)
+    try:
+        result = backtest_sma(candles_data, fast=fast, slow=slow)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result.update({"asset": asset, "period": period})
+    return result
+
 
 @app.get("/health")
 async def health():
