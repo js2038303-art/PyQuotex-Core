@@ -48,3 +48,22 @@ def test_study_snapshot_endpoint_returns_simulated_candles():
     assert body["mode"] == "SIMULATED"
     assert len(body["candles"]) == 30
     assert body["disclaimer"]
+
+
+def test_study_backtest_endpoint_returns_simulated_metrics():
+    response = TestClient(api.app).get(
+        "/api/study/backtest?asset=EURUSD&period=60&limit=120&fast=5&slow=15"
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["mode"] == "SIMULATED_BACKTEST"
+    assert body["candles_tested"] == 120
+    assert body["total_trades"] == len(body["trades"])
+    assert body["disclaimer"]
+
+
+def test_study_backtest_rejects_fast_period_not_below_slow():
+    response = TestClient(api.app).get(
+        "/api/study/backtest?fast=21&slow=9"
+    )
+    assert response.status_code == 422
