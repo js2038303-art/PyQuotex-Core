@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PyQuotex Core • Laboratório</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121d30;--line:#26364d;--muted:#9aabc2;--text:#eef4ff;--green:#24c78a;--red:#ff657a;--blue:#6ca8ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui, sans-serif}
+header{padding:22px 5vw;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+h1{font-size:21px;margin:0}small,.muted{color:var(--muted)}main{max-width:1200px;margin:auto;padding:24px 5vw}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.panel,.metric{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:17px}
+.metric span{display:block;color:var(--muted);font-size:13px}.metric strong{font-size:23px;display:block;margin-top:8px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}select,button{background:#1b2b43;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:10px 13px}button{background:#1c6c55;border:0;font-weight:700;cursor:pointer}
+.chart{height:320px;width:100%;display:block}.chart-wrap{margin-top:16px}.bars{display:flex;align-items:end;gap:3px;height:250px;padding-top:20px}.bar{flex:1;min-width:2px;border-radius:3px 3px 0 0;background:var(--green);opacity:.8}.bar.down{background:var(--red)}
+.notice{padding:12px 14px;background:#342b18;border:1px solid #655027;color:#f5d99a;border-radius:10px;margin-bottom:18px}
+.status{color:var(--green)}.bottom{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.bottom{grid-template-columns:1fr}.chart{height:240px}}
+</style></head>
+<body>
+<header><div><h1>PyQuotex-Core <span class="muted">/ Laboratório</span></h1><small>Ambiente de estudo • motor simulado</small></div><div id="status" class="status">● Inicializando</div></header>
+<main>
+<div class="notice">MODO DE ESTUDO: candles e sinais são sintéticos. Não há conexão com a Quotex nem execução de operações.</div>
+<div class="toolbar"><label>Ativo <select id="asset"><option>EURUSD</option><option>GBPUSD</option><option>USDJPY</option><option>BTCUSD</option></select></label><label>Período <select id="period"><option value="60">1 minuto</option><option value="300">5 minutos</option><option value="900">15 minutos</option></select></label><button id="refresh">Atualizar simulação</button></div>
+<section class="grid">
+<div class="metric"><span>Último preço simulado</span><strong id="price">—</strong></div>
+<div class="metric"><span>SMA 9</span><strong id="sma9">—</strong></div>
+<div class="metric"><span>SMA 21</span><strong id="sma21">—</strong></div>
+<div class="metric"><span>RSI 14</span><strong id="rsi">—</strong></div>
+</section>
+<div class="bottom"><section class="panel chart-wrap"><h3>Movimento dos candles (fechamento)</h3><div id="chart" class="bars"></div></section><section class="panel"><h3>Leitura do motor</h3><h2 id="signal">—</h2><p class="muted" id="detail">Carregando indicadores…</p><hr style="border-color:var(--line)"><small id="count">—</small></section></div>
+<p class="muted" style="margin-top:18px">Esta interface consulta a API do mesmo servidor. Nenhuma URL de API precisa ser configurada manualmente.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+async function load(){
+ $('status').textContent='● Atualizando';
+ try{
+  const asset=$('asset').value,period=$('period').value;
+  const response=await fetch('/api/study/snapshot?asset='+encodeURIComponent(asset)+'&period='+period+'&limit=120');
+  if(!response.ok)throw new Error('API respondeu '+response.status);
+  const data=await response.json(),last=data.candles.at(-1),m=data.indicators;
+  $('price').textContent=last.close;$('sma9').textContent=m.sma_9??'—';$('sma21').textContent=m.sma_21??'—';$('rsi').textContent=m.rsi_14??'—';
+  $('signal').textContent=data.signal;$('detail').textContent='Sinais calculados pelas médias móveis simples. Não são recomendação de investimento.';
+  $('count').textContent=data.candles.length+' candles sintéticos • '+data.asset+' • '+data.period+'s';
+  const closes=data.candles.map(c=>c.close),min=Math.min(...closes),max=Math.max(...closes),range=max-min||1;
+  $('chart').innerHTML='';
+  data.candles.forEach((c,i)=>{const bar=document.createElement('div');bar.className='bar'+(i&&c.close<data.candles[i-1].close?' down':'');bar.style.height=(12+(c.close-min)/range*88)+'%';bar.title=new Date(c.time*1000).toLocaleString()+' • '+c.close;$('chart').appendChild(bar)});
+  $('status').textContent='● API conectada • SIMULAÇÃO';
+ }catch(error){$('status').textContent='● Erro: '+error.message}
+}
+$('refresh').addEventListener('click',load);$('asset').addEventListener('change',load);$('period').addEventListener('change',load);load();
+</script></body></html>
