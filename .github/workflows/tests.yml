@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,4 +23,4 @@ jobs:
           pip install -r requirements.txt
           pip install pytest httpx
       - name: Run regression tests
-        run: pytest -q
+        run: python -m pytest -q
