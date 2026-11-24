@@ -28,6 +28,12 @@ h1{font-size:21px;margin:0}small,.muted{color:var(--muted)}main{max-width:1200px
 <div class="metric"><span>RSI 14</span><strong id="rsi">—</strong></div>
 </section>
 <div class="bottom"><section class="panel chart-wrap"><h3>Movimento dos candles (fechamento)</h3><div id="chart" class="bars"></div></section><section class="panel"><h3>Leitura do motor</h3><h2 id="signal">—</h2><p class="muted" id="detail">Carregando indicadores…</p><hr style="border-color:var(--line)"><small id="count">—</small></section></div>
+<section class="panel" style="margin-top:16px">
+<h3>Backtest educacional • Cruzamento de médias</h3>
+<div class="toolbar"><label>Média rápida <select id="fast"><option>5</option><option selected>9</option><option>12</option><option> sma </option></select></label><label>Média lenta <select id="slow"><option>15</option><option selected>21</option><option>30</option><option>50</option></select></label><button id="runBacktest">Executar backtest</button></div>
+<div class="grid"><div class="metric"><span>Operações simuladas</span><strong id="btTrades">—</strong></div><div class="metric"><span>Acertos</span><strong id="btWins">—</strong></div><div class="metric"><span>Taxa de acerto</span><strong id="btRate">—</strong></div><div class="metric"><span>Retorno simples</span><strong id="btReturn">—</strong></div></div>
+<p id="btNote" class="muted">O backtest utiliza candles sintéticos e não realiza operações.</p>
+</section>
 <p class="muted" style="margin-top:18px">Esta interface consulta a API do mesmo servidor. Nenhuma URL de API precisa ser configurada manualmente.</p>
 </main>
 <script>
@@ -48,5 +54,17 @@ async function load(){
   $('status').textContent='● API conectada • SIMULAÇÃO';
  }catch(error){$('status').textContent='● Erro: '+error.message}
 }
-$('refresh').addEventListener('click',load);$('asset').addEventListener('change',load);$('period').addEventListener('change',load);load();
+async function runBacktest(){
+ const fast=$('fast').value,slow=$('slow').value;
+ $('btNote').textContent='Calculando…';
+ try{
+  const url='/api/study/backtest?asset='+encodeURIComponent($('asset').value)+'&period='+$('period').value+'&limit=300&fast='+fast+'&slow='+slow;
+  const response=await fetch(url);const data=await response.json();
+  if(!response.ok)throw new Error(data.detail||'Falha no backtest');
+  $('btTrades').textContent=data.total_trades;$('btWins').textContent=data.wins+' / '+data.losses;
+  $('btRate').textContent=data.win_rate_pct+'%';$('btReturn').textContent=data.total_return_pct_simple+'%';
+  $('btNote').textContent=data.disclaimer;
+ }catch(error){$('btNote').textContent=error.message}
+}
+$('refresh').addEventListener('click',load);$('asset').addEventListener('change',load);$('period').addEventListener('change',load);$('runBacktest').addEventListener('click',runBacktest);load();
 </script></body></html>
