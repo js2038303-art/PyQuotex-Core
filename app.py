@@ -152,7 +152,7 @@ async def _connect_worker() -> None:
             on_otp_callback=_request_otp,
         )
         candidate.set_account_mode("PRACTICE")
-        ok, reason = await asyncio.wait_for(candidate.connect(), timeout=BROKER_TIMEOUT)
+        ok, reason = await asyncio.wait_for(candidate.connect(), timeout=max(BROKER_TIMEOUT, 210))
         if not ok:
             raise RuntimeError(f"Falha ao conectar à Quotex: {reason}")
         _client, _connected = candidate, True
