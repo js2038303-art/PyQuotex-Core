@@ -15,11 +15,19 @@ h1{font-size:21px;margin:0}small,.muted{color:var(--muted)}main{max-width:1200px
 .notice{padding:12px 14px;background:#342b18;border:1px solid #655027;color:#f5d99a;border-radius:10px;margin-bottom:18px}
 .status{color:var(--green)}.bottom{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px}
 @media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.bottom{grid-template-columns:1fr}.chart{height:240px}}
-</style></head>
+</style><style>input{font:inherit;max-width:220px}</style></head>
 <body>
 <header><div><h1>PyQuotex-Core <span class="muted">/ Laboratório</span></h1><small>Ambiente de estudo • motor simulado</small></div><div id="status" class="status">● Inicializando</div></header>
 <main>
-<div class="notice">MODO DE ESTUDO: candles e sinais são sintéticos. Não há conexão com a Quotex nem execução de operações.</div>
+<section class="panel" style="margin-bottom:16px">
+<h3>Conexão segura • Conta DEMO</h3>
+<p class="muted">A conexão usa as credenciais configuradas nos secrets do Render. Operações reais permanecem desativadas.</p>
+<div class="toolbar"><button id="connectDemo">Conectar conta DEMO</button><button id="disconnectDemo" style="background:#783b48">Desconectar</button></div>
+<div id="authMessage" class="muted" role="status">Aguardando conexão DEMO.</div>
+<div id="otpPanel" hidden style="margin-top:12px;padding:14px;border:1px solid #8b7137;border-radius:10px;background:#342b18">
+<strong>Verificação da Quotex</strong><p id="otpMessage">Digite o código enviado pela Quotex.</p>
+<div class="toolbar"><input id="otpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Código PIN" style="background:#0b1220;color:#eef4ff;border:1px solid #655027;border-radius:9px;padding:10px 13px"><button id="sendOtp">Enviar PIN</button></div>
+</div></section><div class="notice">MODO DE ESTUDO: candles e sinais são sintéticos. Não há conexão com a Quotex nem execução de operações.</div>
 <div class="toolbar"><label>Ativo <select id="asset"><option>EURUSD</option><option>GBPUSD</option><option>USDJPY</option><option>BTCUSD</option></select></label><label>Período <select id="period"><option value="60">1 minuto</option><option value="300">5 minutos</option><option value="900">15 minutos</option></select></label><button id="refresh">Atualizar simulação</button></div>
 <section class="grid">
 <div class="metric"><span>Último preço simulado</span><strong id="price">—</strong></div>
@@ -39,6 +47,28 @@ h1{font-size:21px;margin:0}small,.muted{color:var(--muted)}main{max-width:1200px
 </main>
 <script>
 const $=id=>document.getElementById(id);
+let statusTimer=null;
+async function refreshAuth(){
+ try{
+  const r=await fetch('/api/status');const s=await r.json();
+  $('authMessage').textContent=s.message+(s.trading_enabled?'':' • operações reais desativadas');
+  $('otpPanel').hidden=!s.otp_required;
+  if(s.otp_required)$('otpMessage').textContent=s.otp_message||'Digite o código enviado pela Quotex.';
+  if(s.connected||(!s.connecting&&!s.otp_required)){if(statusTimer){clearInterval(statusTimer);statusTimer=null}}
+ }catch(e){$('authMessage').textContent='Não foi possível consultar o estado da conexão.'}
+}
+$('connectDemo').addEventListener('click',async()=>{
+ $('authMessage').textContent='Iniciando conexão DEMO…';
+ try{const r=await fetch('/api/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({demo:true})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Falha ao iniciar conexão');$('authMessage').textContent=d.message||'Conexão iniciada.';if(!statusTimer)statusTimer=setInterval(refreshAuth,1000);await refreshAuth()}catch(e){$('authMessage').textContent=e.message}
+});
+$('sendOtp').addEventListener('click',async()=>{
+ const code=$('otpCode').value.trim();if(!/^\\d{4,8}$/.test(code)){ $('authMessage').textContent='Informe um PIN numérico de 4 a 8 dígitos.';return}
+ try{const r=await fetch('/api/otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Não foi possível enviar o PIN');$('otpCode').value='';$('authMessage').textContent=d.message;await refreshAuth()}catch(e){$('authMessage').textContent=e.message}
+});
+$('disconnectDemo').addEventListener('click',async()=>{
+ try{const r=await fetch('/api/disconnect',{method:'POST'});if(!r.ok)throw new Error('Falha ao desconectar');$('authMessage').textContent='Desconectado.';if(statusTimer){clearInterval(statusTimer);statusTimer=null}await refreshAuth()}catch(e){$('authMessage').textContent=e.message}
+});
+refreshAuth();
 async function load(){
  $('status').textContent='● Atualizando';
  try{
