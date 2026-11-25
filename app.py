@@ -25,6 +25,7 @@ else:
 
 _client: Any = None
 _connected = False
+_connect_error = ""
 _signal_history: deque[dict[str, Any]] = deque(maxlen=100)
 _connect_lock = asyncio.Lock()
 BROKER_TIMEOUT = float(os.getenv("QUOTEX_CONNECT_TIMEOUT", "45"))
@@ -114,47 +115,107 @@ async def health():
             "connected": _connected, "account_mode": "PRACTICE",
             "trading_enabled": False, "import_error": _IMPORT_ERROR}
 
+_otp_event: asyncio.Event | None = None
+_otp_code: str | None = None
+_otp_required = False
+_otp_message = ""
+_connecting = False
+_connect_task: asyncio.Task | None = None
+
+async def _request_otp(message: str) -> str:
+    """Pause broker authentication until the browser submits its one-time PIN."""
+    global _otp_event, _otp_code, _otp_required, _otp_message
+    _otp_event = asyncio.Event()
+    _otp_code = None
+    _otp_message = (message or "Digite o código enviado pela Quotex.").strip()
+    _otp_required = True
+    try:
+        await asyncio.wait_for(_otp_event.wait(), timeout=180)
+        if not _otp_code:
+            raise RuntimeError("Código PIN não recebido.")
+        return _otp_code
+    finally:
+        _otp_required = False
+        _otp_message = ""
+        _otp_event = None
+        _otp_code = None
+
+async def _connect_worker() -> None:
+    global _client, _connected, _connecting
+    candidate = None
+    try:
+        email, password = os.getenv("QUOTEX_EMAIL"), os.getenv("QUOTEX_PASSWORD")
+        if not email or not password:
+            raise RuntimeError("Credenciais DEMO não configuradas nos secrets do Render.")
+        candidate = Quotex(
+            email=email, password=password, lang="pt",
+            on_otp_callback=_request_otp,
+        )
+        candidate.set_account_mode("PRACTICE")
+        ok, reason = await asyncio.wait_for(candidate.connect(), timeout=BROKER_TIMEOUT)
+        if not ok:
+            raise RuntimeError(f"Falha ao conectar à Quotex: {reason}")
+        _client, _connected = candidate, True
+        candidate = None
+    except Exception as exc:
+        log.exception("DEMO connection failed")
+        _connected = False
+        _client = None
+        _connect_error = f"{type(exc).__name__}: {exc}"
+    else:
+        _connect_error = ""
+    finally:
+        await _close_client(candidate)
+        _connecting = False
+
 @app.get("/api/status")
 async def status():
-    message = ("Conectado à conta DEMO" if _connected else
-               "Motor indisponível" if Quotex is None else "Aguardando conexão DEMO")
-    return {"connected": _connected, "package_loaded": Quotex is not None,
-            "account_mode": "PRACTICE", "trading_enabled": False, "message": message}
+    if _connected:
+        message = "Conectado à conta DEMO"
+    elif _connecting and _otp_required:
+        message = "Aguardando PIN da Quotex"
+    elif _connecting:
+        message = "Conectando à conta DEMO"
+    elif Quotex is None:
+        message = "Motor indisponível"
+    else:
+        message = _connect_error or "Aguardando conexão DEMO"
+    return {
+        "connected": _connected, "connecting": _connecting,
+        "otp_required": _otp_required, "otp_message": _otp_message,
+        "package_loaded": Quotex is not None, "account_mode": "PRACTICE",
+        "trading_enabled": False, "message": message,
+    }
 
 @app.post("/api/connect")
 async def connect(payload: ConnectRequest):
-    global _client, _connected
+    global _connecting, _connect_task, _connect_error
     if not payload.demo:
         raise HTTPException(status_code=403, detail="Somente conexão DEMO/PRACTICE está liberada.")
     if Quotex is None:
         raise HTTPException(status_code=503, detail=f"Biblioteca PyQuotex indisponível: {_IMPORT_ERROR}")
-    email, password = os.getenv("QUOTEX_EMAIL"), os.getenv("QUOTEX_PASSWORD")
-    if not email or not password:
-        raise HTTPException(status_code=503, detail="Credenciais DEMO não configuradas nos secrets do Render.")
-    async with _connect_lock:
-        if _connected and _client is not None:
-            return {"connected": True, "account_mode": "PRACTICE"}
-        candidate = None
-        try:
-            candidate = Quotex(email=email, password=password, lang="pt")
-            candidate.set_account_mode("PRACTICE")
-            ok, reason = await asyncio.wait_for(candidate.connect(), timeout=BROKER_TIMEOUT)
-            if not ok:
-                await _close_client(candidate)
-                raise HTTPException(status_code=502, detail=f"Falha ao conectar à Quotex: {reason}")
-            _client, _connected = candidate, True
-            return {"connected": True, "account_mode": "PRACTICE"}
-        except HTTPException:
-            raise
-        except asyncio.TimeoutError as exc:
-            await _close_client(candidate)
-            _client, _connected = None, False
-            raise HTTPException(status_code=504, detail="Tempo limite ao conectar. Verifique rede, autenticação e OTP.") from exc
-        except Exception as exc:
-            await _close_client(candidate)
-            _client, _connected = None, False
-            log.exception("DEMO connection failed")
-            raise HTTPException(status_code=502, detail=f"Erro na conexão DEMO: {type(exc).__name__}: {exc}") from exc
+    if _connected:
+        return {"connected": True, "account_mode": "PRACTICE"}
+    if not _connecting:
+        _connect_error = ""
+        _connecting = True
+        _connect_task = asyncio.create_task(_connect_worker())
+    return {"connected": False, "connecting": True, "message": "Processo de conexão iniciado."}
+
+class OTPRequest(BaseModel):
+    code: str
+
+@app.post("/api/otp")
+async def submit_otp(payload: OTPRequest):
+    global _otp_code
+    code = payload.code.strip()
+    if not code.isdigit() or not 4 <= len(code) <= 8:
+        raise HTTPException(status_code=422, detail="Digite um PIN numérico válido (4 a 8 dígitos).")
+    if not _otp_required or _otp_event is None:
+        raise HTTPException(status_code=409, detail="A Quotex não está aguardando um PIN neste momento.")
+    _otp_code = code
+    _otp_event.set()
+    return {"accepted": True, "message": "PIN recebido. A autenticação continuará."}
 
 @app.post("/api/disconnect")
 async def disconnect():
