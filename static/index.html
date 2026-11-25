@@ -62,7 +62,7 @@ $('connectDemo').addEventListener('click',async()=>{
  try{const r=await fetch('/api/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({demo:true})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Falha ao iniciar conexão');$('authMessage').textContent=d.message||'Conexão iniciada.';if(!statusTimer)statusTimer=setInterval(refreshAuth,1000);await refreshAuth()}catch(e){$('authMessage').textContent=e.message}
 });
 $('sendOtp').addEventListener('click',async()=>{
- const code=$('otpCode').value.trim();if(!/^\\d{4,8}$/.test(code)){ $('authMessage').textContent='Informe um PIN numérico de 4 a 8 dígitos.';return}
+ const code=$('otpCode').value.trim();if(!/^\d{4,8}$/.test(code)){ $('authMessage').textContent='Informe um PIN numérico de 4 a 8 dígitos.';return}
  try{const r=await fetch('/api/otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Não foi possível enviar o PIN');$('otpCode').value='';$('authMessage').textContent=d.message;await refreshAuth()}catch(e){$('authMessage').textContent=e.message}
 });
 $('disconnectDemo').addEventListener('click',async()=>{
