@@ -7,3 +7,4 @@ websocket-client>=1.6,<2
 beautifulsoup4>=4.12,<5
 numpy>=1.24,<3
 pyfiglet>=0.8.post1
+pyquotex @ git+https://github.com/cleitonleonel/pyquotex.git
