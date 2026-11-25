@@ -141,7 +141,7 @@ async def _request_otp(message: str) -> str:
         _otp_code = None
 
 async def _connect_worker() -> None:
-    global _client, _connected, _connecting
+    global _client, _connected, _connecting, _connect_error
     candidate = None
     try:
         email, password = os.getenv("QUOTEX_EMAIL"), os.getenv("QUOTEX_PASSWORD")
